@@ -1,3 +1,5 @@
+
+
 """
 Questionnaire Scoring Agent
 Extracts questions from documents and scores them on multiple attributes.
@@ -8,10 +10,10 @@ import base64
 import csv
 import io
 import json
-from pathlib import Path
-from typing import Dict, List
 import os
 from pathlib import Path
+from typing import Dict, List
+from docx import Document
 from dotenv import load_dotenv, find_dotenv
 
 # 1) load global/shared first
@@ -19,9 +21,7 @@ load_dotenv(os.path.expanduser("~/.config/secrets/myapps.env"), override=False)
 # 2) then load per-app .env (if present) to override selectively
 load_dotenv(find_dotenv(usecwd=True), override=True)
 
-
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
-
 
 SCORING_PROMPT = """You are a questionnaire scoring agent. Your task:
 
@@ -71,7 +71,7 @@ Demographics,2,How satisfied are you with our amazing product?,4,2,2,3
 
 class QuestionnaireScorer:
     def __init__(self, api_key: str = None):
-        self.client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
+        self.client = anthropic.Anthropic(api_key=api_key)
     
     def score_document(self, doc_path: str) -> Dict:
         """
@@ -83,18 +83,33 @@ class QuestionnaireScorer:
         Returns:
             Dict with 'questions' list and 'section_averages' dict
         """
-        # Read and encode document
-        with open(doc_path, "rb") as f:
-            doc_data = base64.b64encode(f.read()).decode()
-        
-        # Determine media type
         suffix = Path(doc_path).suffix.lower()
-        media_types = {
-            ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-            ".pdf": "application/pdf",
-            ".doc": "application/msword"
-        }
-        media_type = media_types.get(suffix, "application/pdf")
+        
+        # Handle DOCX - extract text first
+        if suffix == ".docx":
+            text_content = self._extract_docx_text(doc_path)
+            content_blocks = [
+                {"type": "text", "text": f"Here is the questionnaire document:\n\n{text_content}\n\n{SCORING_PROMPT}"}
+            ]
+        
+        # Handle PDF - send as document
+        elif suffix == ".pdf":
+            with open(doc_path, "rb") as f:
+                doc_data = base64.b64encode(f.read()).decode()
+            
+            content_blocks = [
+                {
+                    "type": "document",
+                    "source": {
+                        "type": "base64",
+                        "media_type": "application/pdf",
+                        "data": doc_data
+                    }
+                },
+                {"type": "text", "text": SCORING_PROMPT}
+            ]
+        else:
+            raise ValueError(f"Unsupported file format: {suffix}. Use .docx or .pdf")
         
         # Call Claude
         response = self.client.messages.create(
@@ -102,17 +117,7 @@ class QuestionnaireScorer:
             max_tokens=4000,
             messages=[{
                 "role": "user",
-                "content": [
-                    {
-                        "type": "document",
-                        "source": {
-                            "type": "base64",
-                            "media_type": media_type,
-                            "data": doc_data
-                        }
-                    },
-                    {"type": "text", "text": SCORING_PROMPT}
-                ]
+                "content": content_blocks
             }]
         )
         
@@ -126,6 +131,22 @@ class QuestionnaireScorer:
             csv_text = "\n".join(lines[1:-1]) if len(lines) > 2 else csv_text
         
         return self._parse_csv_output(csv_text)
+    
+    def _extract_docx_text(self, doc_path: str) -> str:
+        """Extract text from DOCX file, preserving structure."""
+        doc = Document(doc_path)
+        text_parts = []
+        
+        for para in doc.paragraphs:
+            text = para.text.strip()
+            if text:
+                # Check if it looks like a heading (bold or specific style)
+                if para.style.name.startswith('Heading'):
+                    text_parts.append(f"\n## {text}\n")
+                else:
+                    text_parts.append(text)
+        
+        return "\n".join(text_parts)
     
     def _parse_csv_output(self, csv_text: str) -> Dict:
         """Parse CSV string into structured format with section averages."""

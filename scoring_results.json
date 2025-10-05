@@ -1,0 +1,54 @@
+{
+  "questions": [
+    {
+      "section": "Demographics",
+      "question_number": 1,
+      "question_text": "What is your age?",
+      "clarity": 5,
+      "specificity": 5,
+      "bias": 5,
+      "actionability": 3
+    },
+    {
+      "section": "Demographics",
+      "question_number": 2,
+      "question_text": "What is your gender?",
+      "clarity": 5,
+      "specificity": 5,
+      "bias": 5,
+      "actionability": 2
+    },
+    {
+      "section": "Product Feedback",
+      "question_number": 1,
+      "question_text": "How satisfied are you with our amazing product?",
+      "clarity": 3,
+      "specificity": 3,
+      "bias": 2,
+      "actionability": 4
+    },
+    {
+      "section": "Product Feedback",
+      "question_number": 2,
+      "question_text": "Would you recommend us to others?",
+      "clarity": 4,
+      "specificity": 4,
+      "bias": 4,
+      "actionability": 5
+    }
+  ],
+  "section_averages": {
+    "Demographics": {
+      "clarity": 5.0,
+      "specificity": 5.0,
+      "bias": 5.0,
+      "actionability": 2.5
+    },
+    "Product Feedback": {
+      "clarity": 3.5,
+      "specificity": 3.5,
+      "bias": 3.0,
+      "actionability": 4.5
+    }
+  }
+}
