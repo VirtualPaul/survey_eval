@@ -88,8 +88,8 @@ class EvalHarness:
             print(f"{'='*60}")
             
             try:
-                # Get agent prediction
-                predicted = self.scorer.score_document(eval_case["document"])
+                # Get agent prediction (save CSV for each document)
+                predicted = self.scorer.score_document(eval_case["document"], save_csv=True)
                 expected = eval_case["expected_output"]
                 
                 # Calculate metrics

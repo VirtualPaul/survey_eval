@@ -1,5 +1,3 @@
-
-
 """
 Questionnaire Scoring Agent
 Extracts questions from documents and scores them on multiple attributes.
@@ -28,6 +26,8 @@ SCORING_PROMPT = """You are a questionnaire scoring agent. Your task:
 1. **Parse the input document**
    - Extract all questions
    - Identify section headers (look for bold text, numbering like "Section 1:", or headers)
+   - If a section is not found, use "General" as the section name
+   - Give each question a number that includes it's order and some part of the section name
    - Preserve question order
 
 2. **Score each question** on these attributes (1-5 scale):
@@ -50,22 +50,41 @@ SCORING_PROMPT = """You are a questionnaire scoring agent. Your task:
      * 5 = Directly actionable insights
      * 3 = Somewhat useful for decisions
      * 1 = Not actionable
+    
+    - Narrative Value: How valuable is the question to the target story?
+     * 5 = Essential to the story
+     * 3 = Somewhat useful for the story
+     * 1 = Completely irrelevant to the story
+
+    - Research Value: How valuable is this information to our product or marketing research?
+     * 5 = Essential to the research
+     * 3 = Somewhat useful for the research
+     * 1 = Completely irrelevant to the research
+
+     - Pivot Value: Is this question likely to be one that creates useful segments of the target audience?
+     * 5 = Yes a core pivot question
+     * 3 = Would be a pivot for a smaller segment of the target audience
+     * 1 = Not a pivot question
+
+
 
 3. **Output ONLY a CSV** with these exact columns:
-   Section,Question_Number,Question_Text,Clarity,Specificity,Bias,Actionability
+   Section,Question_Number,Question_Text,Clarity,Specificity,Bias,Actionability,Narrative_Value,Research_Value,Pivot_Value
 
 **Rules**:
 - If no section is found, use "General" as the section name
-- Number questions sequentially within each section
+- Number questions sequentially within each section throughout the document
+- Pay attention to branching logic and update those numbers as you go
+- Include the question choices with the question text
 - Do NOT include section averages in the CSV (we'll calculate those separately)
 - Question_Text should be the exact text from the document
 - All scores must be integers 1-5
 - Output ONLY the CSV, no other text or markdown formatting
 
 **Example output format**:
-Section,Question_Number,Question_Text,Clarity,Specificity,Bias,Actionability
-Demographics,1,What is your age?,5,5,5,3
-Demographics,2,How satisfied are you with our amazing product?,4,2,2,3
+Section,Question_Number,Question_Text,Clarity,Specificity,Bias,Actionability,Narrative_Value,Research_Value,Pivot_Value
+Demographics,1,What is your age?,5,5,5,3,5,5,5
+Demographics,2,How satisfied are you with our amazing product?,4,2,2,3,3,3,3
 """
 
 
@@ -73,12 +92,13 @@ class QuestionnaireScorer:
     def __init__(self, api_key: str = None):
         self.client = anthropic.Anthropic(api_key=api_key)
     
-    def score_document(self, doc_path: str) -> Dict:
+    def score_document(self, doc_path: str, save_csv: bool = True) -> Dict:
         """
         Score a questionnaire document.
         
         Args:
             doc_path: Path to DOCX or PDF file
+            save_csv: Whether to save the raw CSV output to a file
             
         Returns:
             Dict with 'questions' list and 'section_averages' dict
@@ -129,6 +149,13 @@ class QuestionnaireScorer:
         if csv_text.startswith("```"):
             lines = csv_text.split("\n")
             csv_text = "\n".join(lines[1:-1]) if len(lines) > 2 else csv_text
+        
+        # Save raw CSV if requested
+        if save_csv:
+            csv_filename = f"scoring_results_{Path(doc_path).stem}.csv"
+            with open(csv_filename, "w", encoding="utf-8") as f:
+                f.write(csv_text)
+            print(f"Raw CSV saved to: {csv_filename}")
         
         return self._parse_csv_output(csv_text)
     
@@ -198,6 +225,12 @@ class QuestionnaireScorer:
         """Save results to JSON file."""
         with open(output_path, "w") as f:
             json.dump(results, f, indent=2)
+    
+    def save_csv(self, csv_text: str, output_path: str):
+        """Save raw CSV text to file."""
+        with open(output_path, "w", encoding="utf-8") as f:
+            f.write(csv_text)
+        print(f"CSV saved to: {output_path}")
 
 
 if __name__ == "__main__":
@@ -224,3 +257,7 @@ if __name__ == "__main__":
     output_path = "scoring_results.json"
     scorer.save_results(results, output_path)
     print(f"\nFull results saved to {output_path}")
+    
+    # Note about CSV file
+    csv_filename = f"scoring_results_{Path(sys.argv[1]).stem}.csv"
+    print(f"Raw CSV data saved to {csv_filename}")
