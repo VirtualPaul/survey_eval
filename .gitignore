@@ -147,3 +147,10 @@ Thumbs.db
 # Galileo specific
 .galileo/
 galileo_logs/
+
+# Project output files
+*.csv
+*.docx
+*.json
+scoring_results*
+eval_results*
