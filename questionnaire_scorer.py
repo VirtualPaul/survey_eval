@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import Dict, List
 from docx import Document
 from dotenv import load_dotenv, find_dotenv
-# from galileo import GalileoLogger  # Commented out due to Python 3.13 compatibility issues
+from galileo import GalileoLogger
 
 # 1) load global/shared first
 load_dotenv(os.path.expanduser("~/.config/secrets/myapps.env"), override=False)
@@ -28,16 +28,11 @@ GALILEO_API_KEY = os.getenv("GALILEO_API_KEY")
 GALILEO_PROJECT = os.getenv("GALILEO_PROJECT", "survey-eval")
 GALILEO_LOG_STREAM = os.getenv("GALILEO_LOG_STREAM", "questionnaire-scoring")
 
-# Mock Galileo logger for Python 3.13 compatibility
-class MockGalileoLogger:
-    def addLLMSpan(self, **kwargs):
-        print(f"[GALILEO] LLM Span: {kwargs.get('name', 'Unknown')}")
-    
-    def addWorkflowSpan(self, **kwargs):
-        print(f"[GALILEO] Workflow Span: {kwargs.get('name', 'Unknown')}")
-
-# Initialize logger (mock for now)
-galileo_logger = MockGalileoLogger()
+# Initialize real Galileo logger
+galileo_logger = GalileoLogger(
+    project=GALILEO_PROJECT,
+    log_stream=GALILEO_LOG_STREAM
+)
 
 SCORING_PROMPT = """You are a questionnaire scoring agent. Your task:
 
