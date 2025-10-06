@@ -28,6 +28,9 @@ GALILEO_API_KEY = os.getenv("GALILEO_API_KEY")
 GALILEO_PROJECT = os.getenv("GALILEO_PROJECT", "survey-eval")
 GALILEO_LOG_STREAM = os.getenv("GALILEO_LOG_STREAM", "questionnaire-scoring")
 
+# Model configuration
+MAX_TOKENS = int(os.getenv("ANTHROPIC_MAX_TOKENS", "8000"))
+
 # Initialize real Galileo logger
 logger = GalileoLogger(
     project=GALILEO_PROJECT,
@@ -166,7 +169,7 @@ class QuestionnaireScorer:
             name="Questionnaire Scoring",
             model="claude-sonnet-4-20250514",
             temperature=0.0,
-            max_tokens=4000,
+            max_tokens=MAX_TOKENS,
             metadata={
                 "document_path": doc_path,
                 "file_type": suffix,
@@ -176,7 +179,7 @@ class QuestionnaireScorer:
         
         response = self.client.messages.create(
             model="claude-sonnet-4-20250514",
-            max_tokens=4000,
+            max_tokens=MAX_TOKENS,
             messages=[{
                 "role": "user",
                 "content": content_blocks
@@ -191,7 +194,7 @@ class QuestionnaireScorer:
             name="Questionnaire Scoring",
             model="claude-sonnet-4-20250514",
             temperature=0.0,
-            max_tokens=4000,
+            max_tokens=MAX_TOKENS,
             duration_ns=duration_ns,
             metadata={
                 "document_path": doc_path,
@@ -204,6 +207,10 @@ class QuestionnaireScorer:
         # Parse CSV response
         csv_text = response.content[0].text
         csv_text = csv_text.strip()
+        
+        # Check if response was truncated
+        if response.stop_reason == "max_tokens":
+            print("⚠️  WARNING: Response was truncated due to token limit. Consider using a longer survey or splitting into sections.")
         
         # Remove markdown formatting if present
         if csv_text.startswith("```"):
