@@ -9,10 +9,12 @@ import csv
 import io
 import json
 import os
+import time
 from pathlib import Path
 from typing import Dict, List
 from docx import Document
 from dotenv import load_dotenv, find_dotenv
+# from galileo import GalileoLogger  # Commented out due to Python 3.13 compatibility issues
 
 # 1) load global/shared first
 load_dotenv(os.path.expanduser("~/.config/secrets/myapps.env"), override=False)
@@ -20,6 +22,22 @@ load_dotenv(os.path.expanduser("~/.config/secrets/myapps.env"), override=False)
 load_dotenv(find_dotenv(usecwd=True), override=True)
 
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
+
+# Galileo configuration
+GALILEO_API_KEY = os.getenv("GALILEO_API_KEY")
+GALILEO_PROJECT = os.getenv("GALILEO_PROJECT", "survey-eval")
+GALILEO_LOG_STREAM = os.getenv("GALILEO_LOG_STREAM", "questionnaire-scoring")
+
+# Mock Galileo logger for Python 3.13 compatibility
+class MockGalileoLogger:
+    def addLLMSpan(self, **kwargs):
+        print(f"[GALILEO] LLM Span: {kwargs.get('name', 'Unknown')}")
+    
+    def addWorkflowSpan(self, **kwargs):
+        print(f"[GALILEO] Workflow Span: {kwargs.get('name', 'Unknown')}")
+
+# Initialize logger (mock for now)
+galileo_logger = MockGalileoLogger()
 
 SCORING_PROMPT = """You are a questionnaire scoring agent. Your task:
 
@@ -103,6 +121,13 @@ class QuestionnaireScorer:
         Returns:
             Dict with 'questions' list and 'section_averages' dict
         """
+        # Start workflow span
+        galileo_logger.addWorkflowSpan(
+            input={"document_path": doc_path, "save_csv": save_csv},
+            output="",  # Will be updated at the end
+            name="Document Scoring Workflow",
+            metadata={"document_path": doc_path, "save_csv": save_csv}
+        )
         suffix = Path(doc_path).suffix.lower()
         
         # Handle DOCX - extract text first
@@ -131,7 +156,24 @@ class QuestionnaireScorer:
         else:
             raise ValueError(f"Unsupported file format: {suffix}. Use .docx or .pdf")
         
-        # Call Claude
+        # Call Claude with Galileo logging
+        start_time = time.time()
+        
+        # Log the LLM call to Galileo
+        galileo_logger.addLLMSpan(
+            input=SCORING_PROMPT,
+            output="",  # Will be updated after response
+            name="Questionnaire Scoring",
+            model="claude-sonnet-4-20250514",
+            temperature=0.0,
+            max_tokens=4000,
+            metadata={
+                "document_path": doc_path,
+                "file_type": suffix,
+                "prompt_type": "questionnaire_scoring"
+            }
+        )
+        
         response = self.client.messages.create(
             model="claude-sonnet-4-20250514",
             max_tokens=4000,
@@ -139,6 +181,24 @@ class QuestionnaireScorer:
                 "role": "user",
                 "content": content_blocks
             }]
+        )
+        
+        # Update the span with the actual response
+        duration_ns = int((time.time() - start_time) * 1_000_000_000)
+        galileo_logger.addLLMSpan(
+            input=SCORING_PROMPT,
+            output=response.content[0].text,
+            name="Questionnaire Scoring",
+            model="claude-sonnet-4-20250514",
+            temperature=0.0,
+            max_tokens=4000,
+            durationNs=duration_ns,
+            metadata={
+                "document_path": doc_path,
+                "file_type": suffix,
+                "prompt_type": "questionnaire_scoring",
+                "response_length": len(response.content[0].text)
+            }
         )
         
         # Parse CSV response
@@ -157,7 +217,23 @@ class QuestionnaireScorer:
                 f.write(csv_text)
             print(f"Raw CSV saved to: {csv_filename}")
         
-        return self._parse_csv_output(csv_text)
+        result = self._parse_csv_output(csv_text)
+        
+        # Complete workflow span
+        galileo_logger.addWorkflowSpan(
+            input={"document_path": doc_path, "save_csv": save_csv},
+            output=result,
+            name="Document Scoring Workflow",
+            metadata={
+                "document_path": doc_path,
+                "save_csv": save_csv,
+                "questions_found": len(result["questions"]),
+                "sections_found": len(result["section_averages"]),
+                "sections": list(result["section_averages"].keys())
+            }
+        )
+        
+        return result
     
     def _extract_docx_text(self, doc_path: str) -> str:
         """Extract text from DOCX file, preserving structure."""

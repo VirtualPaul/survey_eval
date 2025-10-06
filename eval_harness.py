@@ -6,6 +6,15 @@ import json
 import pandas as pd
 from typing import Dict, List
 from questionnaire_scorer import QuestionnaireScorer
+# from galileo import GalileoLogger  # Commented out due to Python 3.13 compatibility issues
+
+# Mock Galileo logger for Python 3.13 compatibility
+class MockGalileoLogger:
+    def addLLMSpan(self, **kwargs):
+        print(f"[GALILEO] LLM Span: {kwargs.get('name', 'Unknown')}")
+    
+    def addWorkflowSpan(self, **kwargs):
+        print(f"[GALILEO] Workflow Span: {kwargs.get('name', 'Unknown')}")
 
 
 THRESHOLDS = {
@@ -76,9 +85,18 @@ class EvalHarness:
     def __init__(self, eval_dataset_path: str):
         self.eval_dataset = json.load(open(eval_dataset_path))
         self.scorer = QuestionnaireScorer()
+        self.galileo_logger = MockGalileoLogger()
     
     def run_evals(self) -> pd.DataFrame:
         """Run agent on all eval cases."""
+        # Start evaluation workflow
+        self.galileo_logger.addWorkflowSpan(
+            input={"dataset_size": len(self.eval_dataset)},
+            output="",  # Will be updated at the end
+            name="Evaluation Workflow",
+            metadata={"dataset_size": len(self.eval_dataset)}
+        )
+        
         results = []
         
         for eval_case in self.eval_dataset:
@@ -126,7 +144,22 @@ class EvalHarness:
                     "error": str(e)
                 })
         
-        return pd.DataFrame(results)
+        results_df = pd.DataFrame(results)
+        
+        # Complete evaluation workflow
+        self.galileo_logger.addWorkflowSpan(
+            input={"dataset_size": len(self.eval_dataset)},
+            output=results_df.to_dict(),
+            name="Evaluation Workflow",
+            metadata={
+                "dataset_size": len(self.eval_dataset),
+                "completed_evals": len(results_df),
+                "successful_evals": len(results_df[~results_df.get('error', pd.Series()).notna()]),
+                "failed_evals": len(results_df[results_df.get('error', pd.Series()).notna()])
+            }
+        )
+        
+        return results_df
     
     def check_pass_fail(self, results_df: pd.DataFrame) -> bool:
         """Check if evals pass defined thresholds."""
