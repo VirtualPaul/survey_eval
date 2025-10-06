@@ -117,7 +117,7 @@ class QuestionnaireScorer:
             Dict with 'questions' list and 'section_averages' dict
         """
         # Start workflow span
-        galileo_logger.addWorkflowSpan(
+        galileo_logger.add_workflow_span(
             input={"document_path": doc_path, "save_csv": save_csv},
             output="",  # Will be updated at the end
             name="Document Scoring Workflow",
@@ -155,7 +155,7 @@ class QuestionnaireScorer:
         start_time = time.time()
         
         # Log the LLM call to Galileo
-        galileo_logger.addLLMSpan(
+        galileo_logger.add_llm_span(
             input=SCORING_PROMPT,
             output="",  # Will be updated after response
             name="Questionnaire Scoring",
@@ -180,14 +180,14 @@ class QuestionnaireScorer:
         
         # Update the span with the actual response
         duration_ns = int((time.time() - start_time) * 1_000_000_000)
-        galileo_logger.addLLMSpan(
+        galileo_logger.add_llm_span(
             input=SCORING_PROMPT,
             output=response.content[0].text,
             name="Questionnaire Scoring",
             model="claude-sonnet-4-20250514",
             temperature=0.0,
             max_tokens=4000,
-            durationNs=duration_ns,
+            duration_ns=duration_ns,
             metadata={
                 "document_path": doc_path,
                 "file_type": suffix,
@@ -215,7 +215,7 @@ class QuestionnaireScorer:
         result = self._parse_csv_output(csv_text)
         
         # Complete workflow span
-        galileo_logger.addWorkflowSpan(
+        galileo_logger.add_workflow_span(
             input={"document_path": doc_path, "save_csv": save_csv},
             output=result,
             name="Document Scoring Workflow",

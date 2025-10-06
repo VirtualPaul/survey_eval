@@ -85,7 +85,7 @@ class EvalHarness:
     def run_evals(self) -> pd.DataFrame:
         """Run agent on all eval cases."""
         # Start evaluation workflow
-        self.galileo_logger.addWorkflowSpan(
+        self.galileo_logger.add_workflow_span(
             input={"dataset_size": len(self.eval_dataset)},
             output="",  # Will be updated at the end
             name="Evaluation Workflow",
@@ -142,7 +142,7 @@ class EvalHarness:
         results_df = pd.DataFrame(results)
         
         # Complete evaluation workflow
-        self.galileo_logger.addWorkflowSpan(
+        self.galileo_logger.add_workflow_span(
             input={"dataset_size": len(self.eval_dataset)},
             output=results_df.to_dict(),
             name="Evaluation Workflow",
