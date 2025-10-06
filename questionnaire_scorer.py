@@ -258,19 +258,37 @@ class QuestionnaireScorer:
         section_scores = {}
         
         for row in reader:
+            # Helper function to safely extract question number
+            def extract_question_number(q_num_str):
+                if not q_num_str or q_num_str.strip() == '':
+                    return 1  # Default to 1 if empty
+                # Extract numeric part from strings like "QS1", "Q1", "1"
+                import re
+                numbers = re.findall(r'\d+', str(q_num_str))
+                return int(numbers[0]) if numbers else 1
+            
+            # Helper function to safely parse integer scores
+            def safe_int(value, default=1):
+                if not value or value.strip() == '':
+                    return default
+                try:
+                    return int(value)
+                except (ValueError, TypeError):
+                    return default
+            
             question = {
-                "section": row["Section"],
-                "question_number": int(row["Question_Number"]),
-                "question_text": row["Question_Text"],
-                "clarity": int(row["Clarity"]),
-                "specificity": int(row["Specificity"]),
-                "bias": int(row["Bias"]),
-                "actionability": int(row["Actionability"])
+                "section": row.get("Section", "General"),
+                "question_number": extract_question_number(row.get("Question_Number", "1")),
+                "question_text": row.get("Question_Text", ""),
+                "clarity": safe_int(row.get("Clarity")),
+                "specificity": safe_int(row.get("Specificity")),
+                "bias": safe_int(row.get("Bias")),
+                "actionability": safe_int(row.get("Actionability"))
             }
             questions.append(question)
             
             # Collect scores by section
-            section = row["Section"]
+            section = question["section"]
             if section not in section_scores:
                 section_scores[section] = {
                     "clarity": [],
@@ -279,10 +297,10 @@ class QuestionnaireScorer:
                     "actionability": []
                 }
             
-            section_scores[section]["clarity"].append(int(row["Clarity"]))
-            section_scores[section]["specificity"].append(int(row["Specificity"]))
-            section_scores[section]["bias"].append(int(row["Bias"]))
-            section_scores[section]["actionability"].append(int(row["Actionability"]))
+            section_scores[section]["clarity"].append(question["clarity"])
+            section_scores[section]["specificity"].append(question["specificity"])
+            section_scores[section]["bias"].append(question["bias"])
+            section_scores[section]["actionability"].append(question["actionability"])
         
         # Calculate averages
         section_averages = {}
