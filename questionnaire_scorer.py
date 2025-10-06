@@ -29,10 +29,15 @@ GALILEO_PROJECT = os.getenv("GALILEO_PROJECT", "survey-eval")
 GALILEO_LOG_STREAM = os.getenv("GALILEO_LOG_STREAM", "questionnaire-scoring")
 
 # Initialize real Galileo logger
-galileo_logger = GalileoLogger(
+logger = GalileoLogger(
     project=GALILEO_PROJECT,
     log_stream=GALILEO_LOG_STREAM
 )
+
+session_id = logger.start_session(name="Test questionnaire scoring session")
+
+trace = logger.start_trace(name="Test questionnaire scoring trace")
+
 
 SCORING_PROMPT = """You are a questionnaire scoring agent. Your task:
 
@@ -117,7 +122,7 @@ class QuestionnaireScorer:
             Dict with 'questions' list and 'section_averages' dict
         """
         # Start workflow span
-        galileo_logger.add_workflow_span(
+        logger.add_workflow_span(
             input={"document_path": doc_path, "save_csv": save_csv},
             output="",  # Will be updated at the end
             name="Document Scoring Workflow",
@@ -155,7 +160,7 @@ class QuestionnaireScorer:
         start_time = time.time()
         
         # Log the LLM call to Galileo
-        galileo_logger.add_llm_span(
+        logger.add_llm_span(
             input=SCORING_PROMPT,
             output="",  # Will be updated after response
             name="Questionnaire Scoring",
@@ -180,7 +185,7 @@ class QuestionnaireScorer:
         
         # Update the span with the actual response
         duration_ns = int((time.time() - start_time) * 1_000_000_000)
-        galileo_logger.add_llm_span(
+        logger.add_llm_span(
             input=SCORING_PROMPT,
             output=response.content[0].text,
             name="Questionnaire Scoring",
@@ -215,7 +220,7 @@ class QuestionnaireScorer:
         result = self._parse_csv_output(csv_text)
         
         # Complete workflow span
-        galileo_logger.add_workflow_span(
+        logger.add_workflow_span(
             input={"document_path": doc_path, "save_csv": save_csv},
             output=result,
             name="Document Scoring Workflow",
